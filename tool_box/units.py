@@ -53,7 +53,7 @@ def kelvin_to_fahrenheit(kelvin):
 
 
 def fahrenheit_to_kelvin(fahrenheit):
-    return fahrenheit_to_celsius(celsius) + 273.15
+    return fahrenheit_to_celsius(fahrenheit) + 273.15
 
 
 def inches_to_metres(inches):
@@ -70,6 +70,30 @@ def feet_to_metres(feet):
 
 def metres_to_feet(metres):
     return metres * 3.281
+
+
+def miles_to_metres(miles):
+    return miles * 1609.344
+
+
+def metres_to_miles(metres):
+    return metres / 1609.344
+
+
+def parsecs_to_metres(parsecs):
+    return parsecs * 3.0857e16
+
+
+def metres_to_parsecs(metres):
+    return metres / 3.0857e16
+
+
+def au_to_metres(au):
+    return au * 149597870700
+
+
+def metres_to_au(metres):
+    return metres / 149597870700
 
 
 def eV_to_joules(eV):
@@ -142,3 +166,43 @@ def stones_to_kg(stones):
 
 def kg_to_stones(kg):
     return kg / 6.35029
+
+
+def minutes_to_seconds(minutes):
+    return minutes * 60
+
+
+def seconds_to_minutes(seconds):
+    return seconds / 60
+
+
+def hours_to_seconds(hours):
+    return hours * 3600
+
+
+def seconds_to_hours(seconds):
+    return seconds / 3600
+
+
+def days_to_seconds(days):
+    return days * 86400
+
+
+def seconds_to_days(seconds):
+    return seconds / 86400
+
+
+def weeks_to_seconds(weeks):
+    return weeks * 604800
+
+
+def seconds_to_weeks(weeks):
+    return weeks / 604800
+
+
+def years_to_seconds(years):
+    return years * 31557600
+
+
+def seconds_to_years(seconds):
+    return seconds / 31557600
