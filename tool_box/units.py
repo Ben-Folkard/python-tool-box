@@ -40,6 +40,22 @@ def celsius_to_fahrenheit(celsius):
     return (celsius * 9 / 5) + 32
 
 
+def kelvin_to_celsius(kelvin):
+    return kelvin - 273.15
+
+
+def celsius_to_kelvin(celsius):
+    return celsius + 273.15
+
+
+def kelvin_to_fahrenheit(kelvin):
+    return celsius_to_fahrenheit(kelvin - 273.15)
+
+
+def fahrenheit_to_kelvin(fahrenheit):
+    return fahrenheit_to_celsius(celsius) + 273.15
+
+
 def inches_to_metres(inches):
     return inches / 39.37
 
@@ -62,3 +78,67 @@ def eV_to_joules(eV):
 
 def joules_to_eV(joules):
     return joules / q_e
+
+
+def lbs_to_grams(lbs):
+    return lbs * 453.59237
+
+
+def grams_to_lbs(grams):
+    return grams / 453.59237
+
+
+def lbs_to_kg(lbs):
+    return lbs * 0.45359237
+
+
+def kg_to_lbs(grams):
+    return grams / 0.45359237
+
+
+def tonnes_to_grams(tonne):
+    return tonne * 1e6
+
+
+def grams_to_tonnes(grams):
+    return grams / 1e6
+
+
+def tonnes_to_kg(tonne):
+    return tonne * 1000
+
+
+def kg_to_tonnes(kg):
+    return kg / 1000
+
+
+def ounces_to_grams(ounces):
+    return ounces * 28.349523125
+
+
+def grams_to_ounces(grams):
+    return grams / 28.349523125
+
+
+def ounces_to_kg(ounces):
+    return ounces / 35.27396195
+
+
+def kg_to_ounces(kg):
+    return kg * 35.27396195
+
+
+def stones_to_grams(stones):
+    return stones * 6350.29
+
+
+def grams_to_stones(kg):
+    return kg / 6350.29
+
+
+def stones_to_kg(stones):
+    return stones * 6.35029
+
+
+def kg_to_stones(kg):
+    return kg / 6.35029
