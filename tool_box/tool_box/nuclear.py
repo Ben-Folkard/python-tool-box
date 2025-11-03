@@ -2,6 +2,14 @@ from .constants import ln, e, h, c, m_n, sqrt
 
 # Linear decay chains and the Bateman equation: https://bjodah.github.io/posts/bateman-equation.html
 
+__all__ = [
+    "decay_constant_to_half_life",
+    "half_life_to_decay_constant",
+    "neutron_energy_to_wavelength",
+    "neutron_wavelength_to_energy",
+    "half_life_decay",
+    "decay_constant_decay"
+]
 
 def decay_constant_to_half_life(decay_constant):
     return ln(2) / decay_constant

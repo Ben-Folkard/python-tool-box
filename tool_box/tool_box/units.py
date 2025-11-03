@@ -96,6 +96,14 @@ def metres_to_au(metres):
     return metres / 149597870700
 
 
+def m_sq_to_cm_sq(m_sq):
+    return m_sq*1e4
+
+
+def cm_sq_to_m_sq(cm_sq):
+    return cm_sq*1e-4
+
+
 def eV_to_joules(eV):
     return eV * q_e
 
