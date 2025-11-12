@@ -24,7 +24,7 @@ def generate_markdown_diff(filename_1, filename_2, output_filename="diff.md"):
 
         # Removed lines from file1
         if line.startswith("- "):
-            md_lines.append(f"\nFrom:")
+            md_lines.append("\nFrom:")
             block_from = ["```python"]
             while i < len(diff) and diff[i].startswith("- "):
                 block_from.append(f"{line_num1:4d}: {diff[i][2:]}")
@@ -35,7 +35,7 @@ def generate_markdown_diff(filename_1, filename_2, output_filename="diff.md"):
 
             # Corresponding additions
             if i < len(diff) and diff[i].startswith("+ "):
-                md_lines.append(f"\nTo:",)
+                md_lines.append("\nTo:",)
                 block_to = ["```python"]
                 while i < len(diff) and diff[i].startswith("+ "):
                     block_to.append(f"{line_num2:4d}: {diff[i][2:]}")
@@ -44,8 +44,8 @@ def generate_markdown_diff(filename_1, filename_2, output_filename="diff.md"):
                 block_to.append("```")
                 md_lines.extend(block_to)
             else:
-                md_lines.append("\nTo:")  # spacing
-                
+                md_lines.append("\nTo:")
+
             md_lines.append("\n---")
 
         else:
@@ -94,7 +94,6 @@ def _extract_functions(filepath):
             functions[node.name] = lines[start:end]
 
     return functions
-
 
 
 def generate_function_split_markdown_diffs(file1, file2, output_filename="function_diff.md"):
