@@ -64,7 +64,7 @@ def generate_markdown_diff(filename_1, filename_2, output_filename="diff.md"):
 
 
 def _extract_functions(filepath):
-    """Extract function names and their source code from a Python file."""
+    """Extract function names, including decorators, and their source code from a Python file."""
     text = Path(filepath).read_text()
     tree = ast.parse(text)
     lines = text.splitlines()
@@ -72,15 +72,29 @@ def _extract_functions(filepath):
     functions = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
-            start = node.lineno - 1  # 0-indexed
-            # Find end line (next def or EOF)
-            end = max(
-                [getattr(node, "end_lineno", None)]
-                + [child.lineno for child in ast.walk(node) if hasattr(child, "lineno")]
+            # Include decorator lines above the function
+            decorator_start = (
+                min([d.lineno for d in node.decorator_list]) - 1
+                if node.decorator_list
+                else node.lineno - 1
             )
+            start = decorator_start
+
+            # Find end line (use end_lineno when available, else infer)
+            end = getattr(node, "end_lineno", None)
+            if end is None:
+                # Fallback: scan forward until next function/class or EOF
+                next_defs = [
+                    n.lineno for n in ast.walk(tree)
+                    if hasattr(n, "lineno") and n.lineno > node.lineno
+                    and isinstance(n, (ast.FunctionDef, ast.ClassDef))
+                ]
+                end = min(next_defs) - 1 if next_defs else len(lines)
+
             functions[node.name] = lines[start:end]
 
     return functions
+
 
 
 def generate_function_split_markdown_diffs(file1, file2, output_filename="function_diff.md"):
