@@ -2,6 +2,7 @@ import ast
 import difflib
 from pathlib import Path
 import textwrap
+import re
 
 __all__ = [
     "generate_markdown_diff",
@@ -96,86 +97,157 @@ def _extract_functions(filepath):
 
 
 def _extract_function_calls(filepath, internal_function_names):
-    """Extract multi-line calls, filtered to internal functions only."""
+    """
+    Extract full multi-line calls for *internal* functions only.
+    Keeps assignment or dict key context (e.g., '"key": func(...)')
+    but ensures each call snippet is isolated and unique.
+    """
     text = Path(filepath).read_text()
     lines = text.splitlines()
     tree = ast.parse(text)
 
     calls = {}
+
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
 
-        func_name = None
-        if isinstance(node.func, ast.Name):
-            func_name = node.func.id
-        elif isinstance(node.func, ast.Attribute):
-            # skip obj.method() or imported.module.func
+        # Only plain name calls (ignore external libs, attributes, etc.)
+        func_name = (
+            node.func.id
+            if isinstance(node.func, ast.Name)
+            else None
+        )
+        if func_name not in internal_function_names:
             continue
 
-        if not func_name or func_name not in internal_function_names:
-            continue
-
+        # Line span
         start = node.lineno - 1
-        end = getattr(node, "end_lineno", None)
-        if end is None:
-            # fallback: read until parentheses balance
-            open_parens = 0
-            end = start
-            for i in range(start, len(lines)):
-                open_parens += lines[i].count("(")
-                open_parens -= lines[i].count(")")
-                if open_parens <= 0 and i > start:
-                    end = i
+        end = getattr(node, "end_lineno", node.lineno) - 1
+
+        # Expand to include assignment or dict key context if on same line
+        context_start = start
+        for i in range(start - 1, -1, -1):
+            line = lines[i].rstrip()
+            if re.match(r'^\s*(return|with|for|if|else|elif|def|class)\b', line):
+                break
+            if line.strip().endswith('('):
+                break
+            if re.search(r'[:=]\s*$', line):
+                context_start = i
+            elif re.search(r'["\']\s*:\s*$', line):
+                context_start = i
+            else:
+                # stop if previous line seems unrelated
+                if line.strip() and not line.strip().endswith(','):
                     break
 
-        snippet = "\n".join(lines[start:end + 1]).rstrip()
-        snippet = textwrap.dedent(snippet)
-        calls.setdefault(func_name, []).append((node.lineno, snippet))
+        # Extract full text for just this call
+        snippet = "\n".join(lines[context_start:end + 1])
+        snippet = textwrap.dedent(snippet).rstrip()
+
+        # Remove trailing commas if they’re part of a return dict
+        snippet = re.sub(r',\s*$', '', snippet)
+
+        # Record
+        calls.setdefault(func_name, []).append((node.lineno, node.end_lineno, snippet))
+
+    # Deduplicate overlapping or identical snippets
+    for func in calls:
+        seen = set()
+        unique = []
+        for lineno, end_lineno, snip in calls[func]:
+            key = snip.strip()
+            if key not in seen:
+                seen.add(key)
+                unique.append((lineno, end_lineno, snip))
+        calls[func] = unique
 
     return calls
 
 
 def _normalize_call_text(snippet):
-    """Normalize call text for comparison."""
-    return "\n".join(line.rstrip() for line in textwrap.dedent(snippet).splitlines()).strip()
+    """Normalize call text for comparison: dedent, strip trailing ws, collapse multiple blank lines."""
+    # Dedent and strip trailing spaces on each line
+    lines = [ln.rstrip() for ln in textwrap.dedent(snippet).splitlines()]
+    # Remove leading/trailing blank lines
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return "\n".join(lines).strip()
+
+
+def _format_snippet_with_lineno(snippet, lineno):
+    """
+    Format multi-line snippet so first line is prefixed with the lineno,
+    subsequent lines are indented to line up visually.
+    """
+    lines = snippet.splitlines()
+    if not lines:
+        return f"{lineno:4d}: "
+    out = []
+    first = f"{lineno:4d}: {lines[0]}"
+    out.append(first)
+    indent = " " * 6  # aligns after "#### " and lineno
+    for ln in lines[1:]:
+        out.append(f"{indent}{ln}")
+    return "\n".join(out)
 
 
 def _diff_function_calls(md_lines, name, calls1, calls2):
-    """Add Markdown lines showing internal function call changes."""
+    """
+    calls1/calls2 are dicts name -> list of (start_lineno, end_lineno, snippet).
+    This will append properly formatted From/To or Added/Removed sections to md_lines.
+    """
     c1 = calls1.get(name, [])
     c2 = calls2.get(name, [])
 
-    norm1 = [(_normalize_call_text(s), ln) for ln, s in c1]
-    norm2 = [(_normalize_call_text(s), ln) for ln, s in c2]
+    # Normalize snippet text for comparison
+    norm1 = [(_normalize_call_text(snip), (start, end, snip)) for start, end, snip in c1]
+    norm2 = [(_normalize_call_text(snip), (start, end, snip)) for start, end, snip in c2]
 
-    unchanged = set(sn for sn, _ in norm1) & set(sn for sn, _ in norm2)
-    c1_changed = [(ln, s) for (ln, s), (ntext, _) in zip(c1, norm1) if ntext not in unchanged]
-    c2_changed = [(ln, s) for (ln, s), (ntext, _) in zip(c2, norm2) if ntext not in unchanged]
+    set1 = [t for t, _ in norm1]
+    set2 = [t for t, _ in norm2]
+
+    # unchanged normalized texts
+    unchanged = set(set1) & set(set2)
+
+    # changed/unique entries (preserve full info)
+    c1_changed = [info for txt, info in norm1 if txt not in unchanged]
+    c2_changed = [info for txt, info in norm2 if txt not in unchanged]
 
     if not c1_changed and not c2_changed:
-        return
+        return  # nothing to report
 
     md_lines.append(f"#### Function call changes for `{name}`")
 
+    # If counts match, assume a From/To mapping by order (sorted by start lineno)
     if c1_changed and c2_changed and len(c1_changed) == len(c2_changed):
-        for (ln1, s1), (ln2, s2) in zip(sorted(c1_changed), sorted(c2_changed)):
+        # sort both lists by start lineno for stable pairing
+        c1_sorted = sorted(c1_changed, key=lambda t: t[0])
+        c2_sorted = sorted(c2_changed, key=lambda t: t[0])
+        for (ln1, end1, s1), (ln2, end2, s2) in zip(c1_sorted, c2_sorted):
             if _normalize_call_text(s1) != _normalize_call_text(s2):
-                md_lines.append(
-                    f"\nFrom:\n```python\n{ln1:4d}: {s1}\n```\nTo:\n```python\n{ln2:4d}: {s2}\n```"
-                )
+                md_lines.append("\nFrom:\n```python")
+                md_lines.append(_format_snippet_with_lineno(s1, ln1))
+                md_lines.append("```\nTo:\n```python")
+                md_lines.append(_format_snippet_with_lineno(s2, ln2))
+                md_lines.append("```")
     else:
+        # Added calls (in file2 but not file1)
         if c2_changed:
             md_lines.append("\n**Added calls:**")
             md_lines.append("```python")
-            for ln, s in sorted(c2_changed):
-                md_lines.append(f"{ln:4d}: {s}")
+            for ln, end, s in sorted(c2_changed, key=lambda t: t[0]):
+                md_lines.append(_format_snippet_with_lineno(s, ln))
             md_lines.append("```")
+        # Removed calls (in file1 but not file2)
         if c1_changed:
             md_lines.append("\n**Removed calls:**")
             md_lines.append("```python")
-            for ln, s in sorted(c1_changed):
-                md_lines.append(f"{ln:4d}: {s}")
+            for ln, end, s in sorted(c1_changed, key=lambda t: t[0]):
+                md_lines.append(_format_snippet_with_lineno(s, ln))
             md_lines.append("```")
 
     md_lines.append("")  # spacing
